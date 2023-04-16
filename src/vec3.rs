@@ -1,8 +1,21 @@
-#[derive(Clone, Copy, Debug, PartialEq)]
+use rand::rngs::ThreadRng;
+
+#[derive(Clone, Copy, Debug,  PartialEq)]
 pub struct Vec3(pub f64, pub f64, pub f64);
 
 pub type Loc3 = Vec3;
 pub type Colour = Vec3;
+
+pub mod utilities {
+    use rand::{rngs::ThreadRng, Rng};
+
+    pub fn get_normal_dist_random(rng: &mut ThreadRng) -> f64 {
+        // approximation: (1.5-(R1+R2+R3))*1.88
+        // see also https://stackoverflow.com/questions/75677/converting-a-uniform-distribution-to-a-normal-distribution#comment9462647_7771542
+        let (a, b, c) = rng.gen::<(f64, f64, f64)>();
+        (1.5 - (a + b + c)) * 1.88
+    }
+}
 
 // constants
 impl Vec3 {
@@ -28,6 +41,19 @@ impl Vec3 {
             a.2 * b.0 - a.0 * b.2,
             a.0 * b.1 - a.1 * b.0
         )
+    }
+
+    pub fn random_on_unit_sphere(rng: &mut ThreadRng) -> Self {
+        Vec3(
+            utilities::get_normal_dist_random(rng),
+            utilities::get_normal_dist_random(rng),
+            utilities::get_normal_dist_random(rng)
+        ).normalise()
+    }
+
+    pub fn random_on_unit_hemisphere(rng: &mut ThreadRng, normal: Vec3) -> Self {
+        let vec = Self::random_on_unit_sphere(rng);
+        if Vec3::dot(vec, normal) > 0.0 { vec } else { -vec }
     }
 }
 

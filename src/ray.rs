@@ -1,3 +1,5 @@
+use rand::rngs::ThreadRng;
+
 use crate::vec3::{Vec3, Loc3, Colour};
 use crate::obj::Hittable;
 
@@ -12,11 +14,15 @@ impl Ray {
         self.loc + self.dir * t
     }
 
-    pub fn trace(&self, objects: &Vec<Box<dyn Hittable>>) -> Colour {
+    pub fn trace(&self, rng: &mut ThreadRng, objects: &Vec<Box<dyn Hittable>>, depth: u16) -> Colour {
+        if depth == 0 {
+            return Vec3::ZERO;
+        }
+
         for obj in objects {
             if let Some(hit) = obj.hit_test(*self, 0.0..f64::INFINITY) {
-                let n = hit.normal;
-                return (n + Vec3::ONES) * 0.5;
+                let new_ray = Ray { loc: hit.loc, dir: Vec3::random_on_unit_hemisphere(rng, hit.normal)};
+                return new_ray.trace(rng, objects, depth - 1) * 0.5;
             }
         }
 

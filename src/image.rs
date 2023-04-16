@@ -7,14 +7,17 @@ use std::io::prelude::*;
 pub struct Image {
     pub w: usize,
     pub h: usize,
-    pub data: Vec<Colour>
+    pub data: Vec<Colour>,
+
+    pub samples_per_pixel_correction: u16,
 }
 
 impl Image {
-    pub fn blank(w: usize, h: usize) -> Self {
+    pub fn blank(w: usize, h: usize, samples_per_pixel_correction: u16) -> Self {
         Image {
             w, h,
-            data: vec![Colour::ZERO; w * h]
+            data: vec![Colour::ZERO; w * h],
+            samples_per_pixel_correction
         }
     }
 
@@ -22,6 +25,8 @@ impl Image {
         let mut content = format!("P3\n{} {}\n255\n", self.w, self.h);
         
         for i in self.data.iter() {
+            let i = *i * (1.0 / self.samples_per_pixel_correction as f64);
+
             let r = (i.0.clamp(0.0, 1.0) * 255.0) as u8;
             let g = (i.1.clamp(0.0, 1.0) * 255.0) as u8;
             let b = (i.2.clamp(0.0, 1.0) * 255.0) as u8;

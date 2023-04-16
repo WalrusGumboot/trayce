@@ -1,30 +1,38 @@
-use crate::ray::Ray;
-use crate::vec3::{Vec3, Loc3, Colour};
 use crate::image::Image;
 use crate::obj::Hittable;
+use crate::ray::Ray;
+use crate::vec3::{Colour, Loc3, Vec3};
+
+use indicatif::{ProgressBar, ProgressStyle};
+use rand::prelude::*;
 
 pub struct Camera {
     pub loc: Loc3,
-    
+
     pub img_width: usize,
     pub img_height: usize,
 
     pub viewport_width: f64,
     pub viewport_height: f64,
-    
+
     pub focal_length: f64,
 
+    pub samples_per_pixel: u16,
+
+    pub max_bounces: u16
 }
 
 impl Camera {
     pub fn sensible() -> Self {
-        Camera { 
+        Camera {
             loc: Loc3::ZERO,
-            img_width: 640, 
+            img_width: 640,
             img_height: 480,
             viewport_width: 2.0,
             viewport_height: 1.5,
-            focal_length: 1.0 
+            focal_length: 1.0,
+            samples_per_pixel: 100,
+            max_bounces: 5,
         }
     }
 
@@ -40,29 +48,59 @@ impl Camera {
         self.loc - self.horizontal() * 0.5 - self.vertical() * 0.5 - Vec3::F * self.focal_length
     }
 
-
     pub fn render(&self, objects: &Vec<Box<dyn Hittable>>) -> Image {
         let mut image_data: Vec<Colour> = Vec::new();
 
         let hor = self.horizontal();
         let ver = self.vertical();
         let llc = self.lower_left_corner();
-        
-        for idx in 0..(self.img_width * self.img_height) {
-            let x = idx % self.img_width;
-            let y = self.img_height - idx / self.img_width;
-            
-            let u = x as f64 / (self.img_width as f64 - 1.0);
-            let v = y as f64 / (self.img_height as f64 - 1.0);
 
-            let ray = Ray {
-                loc: self.loc,
-                dir: llc + hor * u + ver * v - self.loc
-            };
-            
-            image_data.push(ray.trace(objects));
+        let mut rng = rand::thread_rng();
+
+        let num_pixels = self.img_width * self.img_height;
+
+        let bar = ProgressBar::new(num_pixels as u64 * self.samples_per_pixel as u64)
+            .with_prefix("Rendering:")
+            .with_style(
+                ProgressStyle::with_template(
+                    "Rendering: [{elapsed_precise}] [{wide_bar:.cyan/blue}] ({pos} / {len})",
+                )
+                .unwrap()
+            );
+
+        for idx in 0..num_pixels {
+            let mut colour: Colour = Vec3::ZERO;
+
+            for _ in 0..self.samples_per_pixel {
+                let x = idx % self.img_width;
+                let y = self.img_height - idx / self.img_width;
+
+                let u_off: f64 = rng.gen();
+                let v_off: f64 = rng.gen();
+
+                let u = (x as f64 + u_off) / (self.img_width as f64 - 1.0);
+                let v = (y as f64 + v_off) / (self.img_height as f64 - 1.0);
+
+                let ray = Ray {
+                    loc: self.loc,
+                    dir: llc + hor * u + ver * v - self.loc,
+                };
+
+                colour += ray.trace(&mut rng, objects, self.max_bounces);
+            }
+
+            image_data.push(colour);
+
+            bar.inc(self.samples_per_pixel as u64);
         }
 
-        Image { w: self.img_width, h: self.img_height, data: image_data }
+        bar.finish_with_message("Generated image.");
+
+        Image {
+            w: self.img_width,
+            h: self.img_height,
+            data: image_data,
+            samples_per_pixel_correction: self.samples_per_pixel,
+        }
     }
 }
